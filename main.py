@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 import argparse
 from prompts import system_prompt
-from call_function import available_functions
+from call_function import available_functions, call_function
 import json
 
 def main():
@@ -30,6 +30,7 @@ def main():
         model = "openrouter/free",
         messages = messages,
         tools = available_functions,
+        temperature = 0,
     )
 
     usage = response.usage
@@ -44,8 +45,10 @@ def main():
 
     message = response.choices[0].message
     for tool_call in message.tool_calls:
-        function_agrs = json.loads(tool_call.function.arguments or "{}")
-        print(f"Calling function: {tool_call.function.name}({function_agrs})")
-
+        result_message = call_function(tool_call)
+        if result_message['content'] is None:
+            raise Exception("No content")
+        if args.verbose:
+            print(f"-> {result_message['content']}")
 if __name__ == "__main__":
     main()
