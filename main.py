@@ -5,6 +5,7 @@ import argparse
 from prompts import system_prompt
 from call_function import available_functions, call_function
 import json
+import sys
 
 def main():
     load_dotenv()
@@ -26,29 +27,39 @@ def main():
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": args.user_prompt},
     ]
-    response = client.chat.completions.create(
-        model = "openrouter/free",
-        messages = messages,
-        tools = available_functions,
-        temperature = 0,
-    )
+    for _ in range(20):
+        response = client.chat.completions.create(
+            model = "openrouter/free",
+            messages = messages,
+            tools = available_functions,
+            temperature = 0,
+        )
 
-    usage = response.usage
-    if usage is None:
-        raise RuntimeError("Failed API Request")
+        usage = response.usage
+        if usage is None:
+            raise RuntimeError("Failed API Request")
 
-    if args.verbose == True:
-        print(f"User prompt: {args.user_prompt}")
-        print(f"Prompt tokens: {usage.prompt_tokens}")
-        print(f"Response tokens: {usage.completion_tokens}")
-    print(response.choices[0].message.content)
+        if args.verbose == True:
+            print(f"User prompt: {args.user_prompt}")
+            print(f"Prompt tokens: {usage.prompt_tokens}")
+            print(f"Response tokens: {usage.completion_tokens}")
 
-    message = response.choices[0].message
-    for tool_call in message.tool_calls:
-        result_message = call_function(tool_call)
-        if result_message['content'] is None:
-            raise Exception("No content")
-        if args.verbose:
-            print(f"-> {result_message['content']}")
+        message = response.choices[0].message
+        messages.append(message)
+
+        if not message.tool_calls:
+            print(f"Final response:\n{message.content}")
+            break
+
+        for tool_call in message.tool_calls:
+            result_message = call_function(tool_call)
+            messages.append(result_message)
+            if result_message['content'] is None:
+                raise Exception("No content")
+            if args.verbose:
+                print(f"-> {result_message['content']}")
+    else:
+        print("Maximum iterations reached without a final response")
+        sys.exit(1)
 if __name__ == "__main__":
     main()
